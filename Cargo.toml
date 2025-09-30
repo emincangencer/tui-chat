@@ -1,11 +1,19 @@
 [package]
-name = "chattui"
+name = "tui-chat"
 version = "0.1.0"
 edition = "2024"
+description = "Terminal chat widgets for ratatui applications"
+keywords = ["ratatui", "terminal", "chat", "widget", "tui"]
+categories = ["gui"]
+repository = "https://github.com/emincangencer/tui-chat"
 
 [lib]
-name = "chattui"
+name = "tui_chat"
 path = "src/lib.rs"
+
+[[example]]
+name = "chat_app"
+path = "examples/chat_app.rs"
 
 [dependencies]
 crossterm = "0.29.0"

@@ -1,16 +1,27 @@
+//! Tui-chat - Terminal chat widgets for ratatui applications.
+//!
+//! This crate provides reusable widgets for building chat interfaces in terminal applications
+//! using the ratatui TUI framework.
+
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
-/// Represents a single chat entry.
+/// Represents a single chat message.
+#[derive(Clone, Debug)]
 pub struct ChatMessage {
-    pub sender: String,   // "User", "AI", etc.
-    pub content: String,  // Full message text
+    /// The sender of the message (e.g., "User", "AI")
+    pub sender: String,
+    /// The content of the message
+    pub content: String,
 }
 
-/// Handles rendering and scrolling of the chat messages.
+/// A widget for displaying and scrolling through chat messages.
+///
+/// This widget handles rendering a list of messages with a scrollbar and supports
+/// scrolling through message history.
 pub struct ChatArea {
     messages: Vec<ChatMessage>,
     offset: usize,
@@ -78,7 +89,10 @@ impl ChatArea {
 
 }
 
-/// Handles multiline input editing.
+/// A widget for multiline text input with cursor navigation.
+///
+/// Supports typing, backspace, cursor movement (arrows, up/down for lines),
+/// and handles text wrapping and scrolling for long inputs.
 pub struct InputArea {
     buffer: String,      // current typed text
     cursor: usize,       // cursor position in buffer
@@ -299,7 +313,11 @@ impl InputArea {
 
 }
 
-/// Coordinates everything.
+/// A complete chat application coordinator.
+///
+/// Combines ChatArea and InputArea into a full chat interface.
+/// Handles key events and rendering. Useful for quick prototyping or as a reference
+/// for integrating the individual widgets.
 pub struct ChatApp {
     chat_area: ChatArea,
     input_area: InputArea,

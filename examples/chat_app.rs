@@ -1,3 +1,5 @@
+//! Example demonstrating the full chat application using tui_chat widgets.
+
 use std::io;
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
@@ -6,7 +8,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use chattui::ChatApp;
+use tui_chat::ChatApp;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
