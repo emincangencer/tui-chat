@@ -82,6 +82,7 @@ impl ChatArea {
 pub struct InputArea {
     buffer: String,      // current typed text
     cursor: usize,       // cursor position in buffer
+    offset: usize,       // scroll offset for display
 }
 
 impl InputArea {
@@ -90,6 +91,7 @@ impl InputArea {
         Self {
             buffer: String::new(),
             cursor: 0,
+            offset: 0,
         }
     }
 
@@ -105,8 +107,8 @@ impl InputArea {
             let wrapped = (line_len / effective_width as f32).ceil() as usize;
             total_lines += wrapped.max(1);
         }
-        let capped = total_lines.min(Self::MAX_DISPLAY_LINES);
-        (capped as u16) + 2 // +2 for top and bottom borders
+        let visible_lines = total_lines.min(Self::MAX_DISPLAY_LINES);
+        (visible_lines as u16) + 2 // +2 for top and bottom borders
     }
 
     pub fn insert_char(&mut self, ch: char) {
@@ -157,6 +159,71 @@ impl InputArea {
         }
     }
 
+    fn find_current_line_col(&self) -> (usize, usize) {
+        let lines: Vec<&str> = self.buffer.split('\n').collect();
+        let mut pos = 0; // byte position
+        let mut current_line = 0;
+        let mut current_col = 0;
+        for (i, line) in lines.iter().enumerate() {
+            let line_bytes = line.len();
+            if pos + line_bytes >= self.cursor {
+                current_line = i;
+                current_col = self.buffer[pos..self.cursor].chars().count();
+                break;
+            }
+            pos += line_bytes + 1; // +1 for \n
+        }
+        (current_line, current_col)
+    }
+
+    pub fn cursor_up(&mut self) {
+        let lines: Vec<&str> = self.buffer.split('\n').collect();
+        if lines.is_empty() {
+            return;
+        }
+        let (current_line, current_col) = self.find_current_line_col();
+        if current_line > 0 {
+            let prev_line = lines[current_line - 1];
+            let prev_line_chars: Vec<char> = prev_line.chars().collect();
+            let new_col = current_col.min(prev_line_chars.len());
+            // Calculate byte position of prev line start
+            let mut prev_line_start = 0;
+            for i in 0..(current_line - 1) {
+                prev_line_start += lines[i].len() + 1;
+            }
+            // Add byte offset for new_col chars
+            let mut byte_offset = 0;
+            for ch in prev_line.chars().take(new_col) {
+                byte_offset += ch.len_utf8();
+            }
+            self.cursor = prev_line_start + byte_offset;
+        }
+    }
+
+    pub fn cursor_down(&mut self) {
+        let lines: Vec<&str> = self.buffer.split('\n').collect();
+        if lines.is_empty() {
+            return;
+        }
+        let (current_line, current_col) = self.find_current_line_col();
+        if current_line < lines.len() - 1 {
+            let next_line = lines[current_line + 1];
+            let next_line_chars: Vec<char> = next_line.chars().collect();
+            let new_col = current_col.min(next_line_chars.len());
+            // Calculate byte position of next line start
+            let mut next_line_start = 0;
+            for i in 0..(current_line + 1) {
+                next_line_start += lines[i].len() + 1;
+            }
+            // Add byte offset for new_col chars
+            let mut byte_offset = 0;
+            for ch in next_line.chars().take(new_col) {
+                byte_offset += ch.len_utf8();
+            }
+            self.cursor = next_line_start + byte_offset;
+        }
+    }
+
     pub fn newline(&mut self) {
         self.insert_char('\n');
     }
@@ -165,11 +232,64 @@ impl InputArea {
         let input = self.buffer.clone();
         self.buffer.clear();
         self.cursor = 0;
+        self.offset = 0;
         input
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
-        let display = format!("> {}", self.buffer.replace('\n', "\n> "));
+    pub fn scroll_up(&mut self, lines: usize) {
+        self.offset = self.offset.saturating_sub(lines);
+    }
+
+    pub fn scroll_down(&mut self, lines: usize) {
+        self.offset += lines;
+    }
+
+    pub fn get_offset(&self) -> usize {
+        self.offset
+    }
+
+    fn calculate_display_index(&self) -> usize {
+        let prefix = "> ";
+        let count_nl = self.buffer[..self.cursor].chars().filter(|&ch| ch == '\n').count();
+        prefix.len() + self.cursor + count_nl * prefix.len()
+    }
+
+    fn calculate_cursor_line(&self, display: &str) -> usize {
+        let display_index = self.calculate_display_index();
+        let mut current_line = 0;
+        let mut byte_index = 0;
+        for ch in display.chars() {
+            if byte_index >= display_index {
+                return current_line;
+            }
+            if ch == '\n' {
+                current_line += 1;
+            }
+            byte_index += ch.len_utf8();
+        }
+        current_line
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let full_display = format!("> {}", self.buffer.replace('\n', "\n> "));
+        let lines: Vec<&str> = full_display.lines().collect();
+        let total_lines = lines.len();
+        let cursor_line = self.calculate_cursor_line(&full_display);
+        let max_offset = total_lines.saturating_sub(Self::MAX_DISPLAY_LINES);
+
+        // Auto-scroll to keep cursor visible
+        if cursor_line < self.offset {
+            self.offset = cursor_line;
+        } else if cursor_line >= self.offset + Self::MAX_DISPLAY_LINES {
+            self.offset = cursor_line.saturating_sub(Self::MAX_DISPLAY_LINES - 1);
+        }
+        self.offset = self.offset.min(max_offset);
+
+        // Slice visible lines
+        let end = (self.offset + Self::MAX_DISPLAY_LINES).min(total_lines);
+        let visible_lines = &lines[self.offset..end];
+        let display = visible_lines.join("\n");
+
         let paragraph = Paragraph::new(display)
             .wrap(Wrap { trim: false })
             .block(Block::default().borders(Borders::ALL).title("Input"));
@@ -223,6 +343,8 @@ impl ChatApp {
             }
             KeyCode::PageUp => self.chat_area.scroll_up(5),
             KeyCode::PageDown => self.chat_area.scroll_down(5),
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => self.input_area.scroll_up(1),
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => self.input_area.scroll_down(1),
             KeyCode::Esc | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
@@ -230,6 +352,8 @@ impl ChatApp {
             KeyCode::Backspace => self.input_area.backspace(),
             KeyCode::Left => self.input_area.cursor_left(),
             KeyCode::Right => self.input_area.cursor_right(),
+            KeyCode::Up => self.input_area.cursor_up(),
+            KeyCode::Down => self.input_area.cursor_down(),
             _ => {}
         }
     }
@@ -249,9 +373,24 @@ impl ChatApp {
 
         // Calculate cursor position
         let input_area = chunks[1];
-        let display = format!("> {}", self.input_area.buffer.replace('\n', "\n> "));
-        let display_index = self.calculate_display_index();
-        let cursor_pos = self.calculate_cursor_pos(&display, display_index);
+        let full_display = format!("> {}", self.input_area.buffer.replace('\n', "\n> "));
+        let lines: Vec<&str> = full_display.lines().collect();
+        let total_lines = lines.len();
+        let max_offset = total_lines.saturating_sub(10);
+        let offset = self.input_area.get_offset().min(max_offset);
+        let end = (offset + 10).min(total_lines);
+        let visible_lines = &lines[offset..end];
+        let display = visible_lines.join("\n");
+        let display_index = self.input_area.calculate_display_index();
+        // Calculate start_byte of visible display
+        let mut start_byte = 0;
+        for i in 0..offset {
+            if i < lines.len() {
+                start_byte += lines[i].len() + 1; // +1 for \n
+            }
+        }
+        let adjusted_display_index = display_index.saturating_sub(start_byte);
+        let cursor_pos = self.calculate_cursor_pos(&display, adjusted_display_index);
         if let Some((line, col)) = cursor_pos {
             let absolute_x = input_area.x + 1 + col;
             let absolute_y = input_area.y + 1 + line;
@@ -261,11 +400,7 @@ impl ChatApp {
         }
     }
 
-    fn calculate_display_index(&self) -> usize {
-        let prefix = "> ";
-        let count_nl = self.input_area.buffer[..self.input_area.cursor].chars().filter(|&ch| ch == '\n').count();
-        prefix.len() + self.input_area.cursor + count_nl * prefix.len()
-    }
+
 
     fn calculate_cursor_pos(&self, display: &str, display_index: usize) -> Option<(u16, u16)> {
         let mut current_line = 0;
