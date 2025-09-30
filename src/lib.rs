@@ -343,8 +343,6 @@ impl ChatApp {
             }
             KeyCode::PageUp => self.chat_area.scroll_up(5),
             KeyCode::PageDown => self.chat_area.scroll_down(5),
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => self.input_area.scroll_up(1),
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => self.input_area.scroll_down(1),
             KeyCode::Esc | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
