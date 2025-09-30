@@ -2,9 +2,11 @@
 name = "tui-chat"
 version = "0.1.0"
 edition = "2024"
+authors = ["emincangencer"]
 description = "Terminal chat widgets for ratatui applications"
 keywords = ["ratatui", "terminal", "chat", "widget", "tui"]
 categories = ["gui"]
+license = "MIT"
 repository = "https://github.com/emincangencer/tui-chat"
 
 [lib]
