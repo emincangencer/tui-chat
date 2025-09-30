@@ -18,3 +18,4 @@ path = "examples/chat_app.rs"
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.29.0"
+textwrap = "0.16.0"

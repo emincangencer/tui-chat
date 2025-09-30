@@ -24,49 +24,78 @@ pub struct ChatMessage {
 /// scrolling through message history.
 pub struct ChatArea {
     messages: Vec<ChatMessage>,
+    // Each message can be multi-line, so we need to track the lines.
+    // This is a list of (message_index, line_index) tuples.
+    message_lines: Vec<(usize, usize)>,
     offset: usize,
     scrollbar_state: ScrollbarState,
-    visible_capacity: usize,
+    auto_scroll: bool,
 }
 
 impl ChatArea {
     pub fn new() -> Self {
         Self {
             messages: Vec::new(),
+            message_lines: Vec::new(),
             offset: 0,
             scrollbar_state: ScrollbarState::default(),
-            visible_capacity: 10, // default, will be updated in render
+            auto_scroll: true,
         }
     }
 
     pub fn add_message(&mut self, msg: ChatMessage) {
         self.messages.push(msg);
-        // Auto-scroll to bottom, clamped to max_scroll
-        let max_scroll = self.messages.len().saturating_sub(self.visible_capacity);
-        self.offset = max_scroll;
+        self.auto_scroll = true;
     }
 
     pub fn scroll_up(&mut self, lines: usize) {
         self.offset = self.offset.saturating_sub(lines);
+        self.auto_scroll = false;
     }
 
     pub fn scroll_down(&mut self, lines: usize) {
-        let content_length = self.messages.len();
-        let max_scroll = content_length.saturating_sub(self.visible_capacity);
+        let content_length = self.message_lines.len();
+        let max_scroll = content_length.saturating_sub(1);
         self.offset = (self.offset + lines).min(max_scroll);
+        if self.offset == max_scroll {
+            self.auto_scroll = true;
+        }
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        // Capacity = how many lines fit in visible area
-        let visible_capacity = area.height as usize - 2; // account for borders
-        self.visible_capacity = visible_capacity;
+        let visible_width = area.width.saturating_sub(2) as usize; // account for borders
+        let visible_height = area.height.saturating_sub(2) as usize;
 
-        // Total content length
-        let content_length = self.messages.len();
+        // If width is zero, we can't render anything.
+        if visible_width == 0 {
+            return;
+        }
 
-        // Slice the messages to show only visible ones
-        let items: Vec<ListItem> = self.messages.iter().skip(self.offset).take(visible_capacity).map(|m| {
-            ListItem::new(format!("{}: {}", m.sender, m.content))
+        // Re-calculate message_lines whenever we render
+        self.message_lines.clear();
+        for (i, msg) in self.messages.iter().enumerate() {
+            let content = format!("{}: {}", msg.sender, msg.content);
+            let lines = textwrap::wrap(&content, visible_width);
+            for j in 0..lines.len() {
+                self.message_lines.push((i, j));
+            }
+        }
+
+        let total_lines = self.message_lines.len();
+
+        let max_offset = total_lines.saturating_sub(visible_height);
+        if self.auto_scroll {
+            self.offset = max_offset;
+        }
+        self.offset = self.offset.min(max_offset);
+
+
+        // Slice the lines to show only visible ones
+        let items: Vec<ListItem> = self.message_lines.iter().skip(self.offset).take(visible_height).map(|(msg_idx, line_idx)| {
+            let msg = &self.messages[*msg_idx];
+            let content = format!("{}: {}", msg.sender, msg.content);
+            let lines = textwrap::wrap(&content, visible_width);
+            ListItem::new(lines[*line_idx].to_string())
         }).collect();
 
         let list = List::new(items)
@@ -77,9 +106,7 @@ impl ChatArea {
             .end_symbol(Some("↓"));
 
         // Update scrollbar state
-        self.scrollbar_state = self.scrollbar_state.content_length(
-            content_length.saturating_sub(visible_capacity).max(0)
-        );
+        self.scrollbar_state = self.scrollbar_state.content_length(total_lines.saturating_sub(visible_height));
         self.scrollbar_state = self.scrollbar_state.position(self.offset);
 
         let split = Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).split(area);
