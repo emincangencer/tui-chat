@@ -132,6 +132,31 @@ impl InputArea {
         }
     }
 
+    pub fn cursor_left(&mut self) {
+        if self.cursor > 0 {
+            // Find the previous char boundary
+            let mut prev = 0;
+            for (i, _) in self.buffer.char_indices() {
+                if i >= self.cursor {
+                    break;
+                }
+                prev = i;
+            }
+            self.cursor = prev;
+        }
+    }
+
+    pub fn cursor_right(&mut self) {
+        if self.cursor < self.buffer.len() {
+            if let Some((i, _)) = self.buffer.char_indices().find(|(i, _)| *i > self.cursor) {
+                self.cursor = i;
+            } else {
+                // at the last char, move to end
+                self.cursor = self.buffer.len();
+            }
+        }
+    }
+
     pub fn newline(&mut self) {
         self.insert_char('\n');
     }
@@ -150,6 +175,8 @@ impl InputArea {
             .block(Block::default().borders(Borders::ALL).title("Input"));
         frame.render_widget(paragraph, area);
     }
+
+
 }
 
 /// Coordinates everything.
@@ -157,6 +184,7 @@ pub struct ChatApp {
     chat_area: ChatArea,
     input_area: InputArea,
     should_quit: bool,
+    cursor_pos: Option<(u16, u16)>,
 }
 
 impl ChatApp {
@@ -165,6 +193,7 @@ impl ChatApp {
             chat_area: ChatArea::new(),
             input_area: InputArea::new(),
             should_quit: false,
+            cursor_pos: None,
         }
     }
 
@@ -199,6 +228,8 @@ impl ChatApp {
             }
             KeyCode::Char(c) => self.input_area.insert_char(c),
             KeyCode::Backspace => self.input_area.backspace(),
+            KeyCode::Left => self.input_area.cursor_left(),
+            KeyCode::Right => self.input_area.cursor_right(),
             _ => {}
         }
     }
@@ -215,9 +246,55 @@ impl ChatApp {
             .split(size);
         self.chat_area.render(frame, chunks[0]);
         self.input_area.render(frame, chunks[1]);
+
+        // Calculate cursor position
+        let input_area = chunks[1];
+        let display = format!("> {}", self.input_area.buffer.replace('\n', "\n> "));
+        let display_index = self.calculate_display_index();
+        let cursor_pos = self.calculate_cursor_pos(&display, display_index);
+        if let Some((line, col)) = cursor_pos {
+            let absolute_x = input_area.x + 1 + col;
+            let absolute_y = input_area.y + 1 + line;
+            self.cursor_pos = Some((absolute_x, absolute_y));
+        } else {
+            self.cursor_pos = None;
+        }
+    }
+
+    fn calculate_display_index(&self) -> usize {
+        let prefix = "> ";
+        let count_nl = self.input_area.buffer[..self.input_area.cursor].chars().filter(|&ch| ch == '\n').count();
+        prefix.len() + self.input_area.cursor + count_nl * prefix.len()
+    }
+
+    fn calculate_cursor_pos(&self, display: &str, display_index: usize) -> Option<(u16, u16)> {
+        let mut current_line = 0;
+        let mut current_col = 0;
+        let mut byte_index = 0;
+        for ch in display.chars() {
+            if byte_index == display_index {
+                return Some((current_line as u16, current_col as u16));
+            }
+            if ch == '\n' {
+                current_line += 1;
+                current_col = 0;
+            } else {
+                current_col += 1;
+            }
+            byte_index += ch.len_utf8();
+        }
+        if byte_index == display_index {
+            Some((current_line as u16, current_col as u16))
+        } else {
+            None
+        }
     }
 
     pub fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    pub fn get_cursor_pos(&self) -> Option<(u16, u16)> {
+        self.cursor_pos
     }
 }
