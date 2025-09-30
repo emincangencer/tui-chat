@@ -19,6 +19,7 @@ Add this to your `Cargo.toml`:
 tui-chat = "0.1.0"
 ratatui = "0.29.0"
 crossterm = "0.29.0"
+textwrap = "0.16.0"
 ```
 
 ### Prerequisites
