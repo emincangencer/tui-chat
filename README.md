@@ -17,7 +17,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tui-chat = "0.1.0"
+tui-chat = "0.2.0"
 ratatui = "0.29.0"
 crossterm = "0.29.0"
 textwrap = "0.16.0"
