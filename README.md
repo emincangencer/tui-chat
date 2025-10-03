@@ -65,7 +65,7 @@ cargo run --example chat_app
 ### Keybindings (for ChatApp example)
 
 - **Enter**: Send message
-- **Shift+Enter**: New line in input
+- **Ctrl+Enter, Ctrl+J, Shift+Enter**: New line in input (depends on the OS and terminal. With WSL, and likely macOS and Linux, it's Ctrl+Enter or Ctrl+J; with PowerShell (pwsh), it's Shift+Enter and Ctrl+J)
 - **Ctrl+V**: Paste from clipboard
 - **Page Up/Down**: Scroll chat history
 - **Arrow Keys**: Navigate cursor in input area

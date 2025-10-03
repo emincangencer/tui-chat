@@ -425,6 +425,7 @@ impl ChatApp {
                     self.on_paste(text);
                 }
             }
+            KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => self.input_area.newline(),
             KeyCode::Char(c) => self.input_area.insert_char(c),
             KeyCode::Backspace => self.input_area.backspace(),
             KeyCode::Left => self.input_area.cursor_left(),
