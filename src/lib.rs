@@ -9,6 +9,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
+use crossterm::event::{MouseEvent, MouseEventKind};
 
 /// Represents a single chat message.
 #[derive(Clone, Debug)]
@@ -372,6 +373,7 @@ pub struct ChatApp {
     input_area: InputArea,
     should_quit: bool,
     cursor_pos: Option<(u16, u16)>,
+    chat_rect: Rect,
 }
 
 impl Default for ChatApp {
@@ -387,6 +389,7 @@ impl ChatApp {
             input_area: InputArea::new(),
             should_quit: false,
             cursor_pos: None,
+            chat_rect: Rect::default(),
         }
     }
 
@@ -436,6 +439,21 @@ impl ChatApp {
         }
     }
 
+    pub fn on_mouse(&mut self, mouse: MouseEvent) {
+        // Check if mouse is within chat area
+        if mouse.column >= self.chat_rect.x
+            && mouse.column < self.chat_rect.x + self.chat_rect.width
+            && mouse.row >= self.chat_rect.y
+            && mouse.row < self.chat_rect.y + self.chat_rect.height
+        {
+            match mouse.kind {
+                MouseEventKind::ScrollUp => self.chat_area.scroll_up(3),
+                MouseEventKind::ScrollDown => self.chat_area.scroll_down(3),
+                _ => {}
+            }
+        }
+    }
+
     /// Handles pasted content by inserting it into the input area.
     pub fn on_paste(&mut self, content: String) {
         self.input_area.insert_str(&content);
@@ -451,6 +469,7 @@ impl ChatApp {
                 Constraint::Length(input_height),
             ].as_ref())
             .split(size);
+        self.chat_rect = chunks[0];
         self.chat_area.render(frame, chunks[0]);
         self.input_area.render(frame, chunks[1]);
 
@@ -520,6 +539,7 @@ impl ChatApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::KeyModifiers;
 
     #[test]
     fn test_insert_str_normalization() {
@@ -538,5 +558,48 @@ mod tests {
         input.insert_str("test");
         assert_eq!(input.buffer, "atestb");
         assert_eq!(input.cursor, 5); // 'a' 't' 'e' 's' 't' 'b' cursor after 't'
+    }
+
+    #[test]
+    fn test_mouse_scroll() {
+        let mut app = ChatApp::new();
+        app.chat_area.add_message(ChatMessage {
+            sender: "Test".to_string(),
+            content: "This is a long message that will wrap into multiple lines when displayed in the chat area.".to_string(),
+        });
+        // Manually calculate message_lines as in render
+        let visible_width = 10;
+        app.chat_area.message_lines.clear();
+        for (i, msg) in app.chat_area.messages.iter().enumerate() {
+            let content = format!("{}: {}", msg.sender, msg.content);
+            let lines = textwrap::wrap(&content, visible_width);
+            for j in 0..lines.len() {
+                app.chat_area.message_lines.push((i, j));
+            }
+        }
+        // Set offset to 10
+        app.chat_area.offset = 10;
+        // Set chat_rect
+        app.chat_rect = Rect::new(0, 0, 20, 20);
+        // Mouse event inside rect
+        let mouse = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 5,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        };
+        app.on_mouse(mouse);
+        assert_eq!(app.chat_area.offset, 7); // 10 - 3
+        // Reset offset
+        app.chat_area.offset = 10;
+        // Mouse event outside rect
+        let mouse_out = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 25,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        };
+        app.on_mouse(mouse_out);
+        assert_eq!(app.chat_area.offset, 10); // unchanged
     }
 }

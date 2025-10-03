@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match event::read()? {
             Event::Key(key) => app.on_key(key),
+            Event::Mouse(mouse) => app.on_mouse(mouse),
             Event::Paste(content) => app.on_paste(content),
             _ => {}
         }
