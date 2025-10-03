@@ -13,7 +13,13 @@ A Rust crate providing terminal chat widgets for ratatui applications. Includes 
 
 ## Installation
 
-Add this to your `Cargo.toml`:
+Add the crate to your project:
+
+```bash
+cargo add tui-chat
+```
+
+Or manually add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
