@@ -5,6 +5,7 @@ A Rust crate providing terminal chat widgets for ratatui applications. Includes 
 ## Features
 
 - **Multiline Input**: Type messages with line breaks using Shift+Enter.
+- **Clipboard Paste Support**: Paste multiline text from clipboard with proper line ending normalization.
 - **Scrollable Chat History**: Navigate through messages with Page Up/Down or mouse wheel.
 - **Simulated AI Responses**: Automatically responds to user messages for demonstration.
 - **Keyboard Navigation**: Full cursor movement support in input area (arrow keys, etc.).
@@ -60,6 +61,7 @@ cargo run --example chat_app
 
 - **Enter**: Send message
 - **Shift+Enter**: New line in input
+- **Ctrl+V**: Paste from clipboard
 - **Page Up/Down**: Scroll chat history
 - **Arrow Keys**: Navigate cursor in input area
 - **Backspace**: Delete character
