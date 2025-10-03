@@ -18,10 +18,9 @@ Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
 tui-chat = "0.2.0"
-ratatui = "0.29.0"
-crossterm = "0.29.0"
-textwrap = "0.16.0"
 ```
+
+This will automatically include all required dependencies (ratatui, crossterm, textwrap, arboard).
 
 ### Prerequisites
 
