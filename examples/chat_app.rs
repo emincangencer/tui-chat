@@ -3,7 +3,7 @@
 use std::io;
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
+    event::{self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, Hide)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, EnableBracketedPaste, Hide)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -32,8 +32,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             execute!(terminal.backend_mut(), Hide)?;
         }
 
-        if let Event::Key(key) = event::read()? {
-            app.on_key(key);
+        match event::read()? {
+            Event::Key(key) => app.on_key(key),
+            Event::Paste(content) => app.on_paste(content),
+            _ => {}
         }
 
         if app.should_quit() {
@@ -47,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture,
+        DisableBracketedPaste,
         Show
     )?;
     terminal.show_cursor()?;

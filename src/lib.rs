@@ -3,6 +3,7 @@
 //! This crate provides reusable widgets for building chat interfaces in terminal applications
 //! using the ratatui TUI framework.
 
+use arboard::Clipboard;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -30,6 +31,12 @@ pub struct ChatArea {
     offset: usize,
     scrollbar_state: ScrollbarState,
     auto_scroll: bool,
+}
+
+impl Default for ChatArea {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ChatArea {
@@ -126,6 +133,12 @@ pub struct InputArea {
     offset: usize,       // scroll offset for display
 }
 
+impl Default for InputArea {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputArea {
     const MAX_DISPLAY_LINES: usize = 10;
     pub fn new() -> Self {
@@ -153,11 +166,20 @@ impl InputArea {
     }
 
     pub fn insert_char(&mut self, ch: char) {
+        let ch = if ch == '\r' { '\n' } else { ch };
         if self.cursor > self.buffer.len() {
             self.cursor = self.buffer.len();
         }
         self.buffer.insert(self.cursor, ch);
         self.cursor += ch.len_utf8();
+    }
+
+    /// Inserts a string into the buffer at the cursor position, normalizing line endings to \n.
+    pub fn insert_str(&mut self, s: &str) {
+        let normalized = s.replace("\r\n", "\n").replace('\r', "\n");
+        for ch in normalized.chars() {
+            self.insert_char(ch);
+        }
     }
 
     pub fn backspace(&mut self) {
@@ -229,8 +251,8 @@ impl InputArea {
             let new_col = current_col.min(prev_line_chars.len());
             // Calculate byte position of prev line start
             let mut prev_line_start = 0;
-            for i in 0..(current_line - 1) {
-                prev_line_start += lines[i].len() + 1;
+            for line in lines.iter().take(current_line - 1) {
+                prev_line_start += line.len() + 1;
             }
             // Add byte offset for new_col chars
             let mut byte_offset = 0;
@@ -253,8 +275,8 @@ impl InputArea {
             let new_col = current_col.min(next_line_chars.len());
             // Calculate byte position of next line start
             let mut next_line_start = 0;
-            for i in 0..(current_line + 1) {
-                next_line_start += lines[i].len() + 1;
+            for line in lines.iter().take(current_line + 1) {
+                next_line_start += line.len() + 1;
             }
             // Add byte offset for new_col chars
             let mut byte_offset = 0;
@@ -352,6 +374,12 @@ pub struct ChatApp {
     cursor_pos: Option<(u16, u16)>,
 }
 
+impl Default for ChatApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChatApp {
     pub fn new() -> Self {
         Self {
@@ -391,6 +419,12 @@ impl ChatApp {
             KeyCode::Esc | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Ok(mut clipboard) = Clipboard::new()
+                    && let Ok(text) = clipboard.get_text() {
+                    self.on_paste(text);
+                }
+            }
             KeyCode::Char(c) => self.input_area.insert_char(c),
             KeyCode::Backspace => self.input_area.backspace(),
             KeyCode::Left => self.input_area.cursor_left(),
@@ -399,6 +433,11 @@ impl ChatApp {
             KeyCode::Down => self.input_area.cursor_down(),
             _ => {}
         }
+    }
+
+    /// Handles pasted content by inserting it into the input area.
+    pub fn on_paste(&mut self, content: String) {
+        self.input_area.insert_str(&content);
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
@@ -474,5 +513,29 @@ impl ChatApp {
 
     pub fn get_cursor_pos(&self) -> Option<(u16, u16)> {
         self.cursor_pos
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_str_normalization() {
+        let mut input = InputArea::new();
+        input.insert_str("hello\r\nworld\r");
+        assert_eq!(input.buffer, "hello\nworld\n");
+        assert_eq!(input.cursor, 12);
+    }
+
+    #[test]
+    fn test_insert_str_cursor_position() {
+        let mut input = InputArea::new();
+        input.insert_char('a');
+        input.insert_char('b');
+        input.cursor_left();
+        input.insert_str("test");
+        assert_eq!(input.buffer, "atestb");
+        assert_eq!(input.cursor, 5); // 'a' 't' 'e' 's' 't' 'b' cursor after 't'
     }
 }
